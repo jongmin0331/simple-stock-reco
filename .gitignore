@@ -1,0 +1,14 @@
+.venv/
+.venv\
+__pycache__/
+*.pyc
+.env
+.env.*
+.DS_Store
+.vscode/
+.idea/
+*.pyo
+*.pyd
+node_modules/
+*.sqlite3
+/secrets.toml
