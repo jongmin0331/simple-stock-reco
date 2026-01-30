@@ -4,3 +4,6 @@ pandas
 numpy
 scikit-learn
 joblib
+requests
+beautifulsoup4
+lxml
