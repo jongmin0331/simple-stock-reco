@@ -56,12 +56,25 @@ else:
 		else:
 			st.info(f"스캔 대상 티커 수: {len(universe)} (최대 {max_scan}개로 제한)")
 			with st.spinner("고도화 스캔을 실행 중입니다... (시간이 걸립니다)"):
-				df_rec = recommend_advanced(lambda t, period: fetch_history(t, period=period), universe, max_scan=max_scan)
-			if df_rec.empty:
+				result = recommend_advanced(lambda t, period: fetch_history(t, period=period), universe, max_scan=max_scan)
+
+			# result is a dict with 'buy','sell','hold' DataFrames
+			df_buy = result.get('buy', pd.DataFrame())
+			df_sell = result.get('sell', pd.DataFrame())
+			df_hold = result.get('hold', pd.DataFrame())
+
+			if df_buy.empty and df_sell.empty and df_hold.empty:
 				st.warning("추천 결과가 없습니다.")
 			else:
-				st.subheader("Advanced 추천 결과")
-				st.dataframe(df_rec)
+				if not df_buy.empty:
+					st.subheader("Buy 추천")
+					st.dataframe(df_buy)
+				if not df_sell.empty:
+					st.subheader("Sell 추천")
+					st.dataframe(df_sell)
+				if not df_hold.empty:
+					st.subheader("Hold / 기타")
+					st.dataframe(df_hold)
 
 st.markdown("---")
 st.markdown("**설명:** 고급 모드는 RSI, 일목균형표, 간단한 뉴스 감성 점수를 결합해 `buy`/`sell`/`hold`를 출력합니다. 전체 시장 스캔 시 네트워크 요청과 시간이 많이 필요합니다.")

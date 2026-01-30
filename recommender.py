@@ -1,6 +1,6 @@
 import pandas as pd
-import pandas as pd
 import numpy as np
+import yfinance as yf
 from indicators import compute_rsi, ichimoku_signal
 from news_fetcher import fetch_news_and_sentiment
 
@@ -48,7 +48,7 @@ def recommend_advanced(history_func, tickers, max_scan=200):
     - `history_func(ticker, period=...)` should return a DataFrame with OHLCV.
     - `tickers` is an iterable of ticker strings.
     - `max_scan` limits how many tickers to check in one run (avoid very long runs).
-    Returns a DataFrame with buy/sell recommendations and component scores.
+    Returns a dict with DataFrames for `buy`, `sell`, and `hold`.
     """
     rows = []
     scanned = 0
@@ -77,6 +77,18 @@ def recommend_advanced(history_func, tickers, max_scan=200):
         mom = compute_momentum(df, days=20)
         vol = compute_volatility(df, days=20)
 
+        # fundamentals: try getting PSR/PBR from yfinance info
+        psr = np.nan
+        pbr = np.nan
+        try:
+            tk = yf.Ticker(t)
+            info = tk.info or {}
+            psr = info.get('priceToSalesTrailing12Months') or info.get('priceToSales') or np.nan
+            pbr = info.get('priceToBook') or np.nan
+        except Exception:
+            psr = np.nan
+            pbr = np.nan
+
         # scoring rules (simple, tunable)
         score = 0.0
         # momentum normalized
@@ -97,11 +109,22 @@ def recommend_advanced(history_func, tickers, max_scan=200):
         score += float(sentiment) * 2.0
 
         # determine recommendation
+        # If RSI >= 80 -> strong sell signal per user rule
         reco = 'hold'
-        if score >= 2.0:
-            reco = 'buy'
-        elif score <= -1.5:
+        if not np.isnan(rsi_now) and rsi_now >= 80:
             reco = 'sell'
+        else:
+            if score >= 2.0:
+                # apply PSR/PBR filters for buy candidates
+                # user rule: PSR <= 20, PBR <= 30
+                psr_ok = True if (np.isnan(psr) or (psr <= 20)) else False
+                pbr_ok = True if (np.isnan(pbr) or (pbr <= 30)) else False
+                if psr_ok and pbr_ok:
+                    reco = 'buy'
+                else:
+                    reco = 'hold'
+            elif score <= -1.5:
+                reco = 'sell'
 
         rows.append({
             'ticker': t,
@@ -112,9 +135,16 @@ def recommend_advanced(history_func, tickers, max_scan=200):
             'rsi': rsi_now,
             'ichimoku_price_above_cloud': ichi.get('price_above_cloud'),
             'sentiment': sentiment,
+            'psr': psr,
+            'pbr': pbr,
         })
 
     if not rows:
-        return pd.DataFrame(columns=['ticker','score','reco'])
-    df_out = pd.DataFrame(rows).sort_values('score', ascending=False)
-    return df_out.reset_index(drop=True)
+        return {'buy': pd.DataFrame(), 'sell': pd.DataFrame(), 'hold': pd.DataFrame()}
+    df_out = pd.DataFrame(rows).sort_values('score', ascending=False).reset_index(drop=True)
+
+    # split into buy / sell / hold
+    df_buy = df_out[df_out['reco'] == 'buy'].reset_index(drop=True)
+    df_sell = df_out[df_out['reco'] == 'sell'].reset_index(drop=True)
+    df_hold = df_out[df_out['reco'] == 'hold'].reset_index(drop=True)
+    return {'buy': df_buy, 'sell': df_sell, 'hold': df_hold}
