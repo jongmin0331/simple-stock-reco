@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from data_fetcher import fetch_history, ensure_kr_suffix
 from recommender import recommend_by_momentum, recommend_advanced
 from tickers_fetcher import fetch_nasdaq_list, fetch_kospi_list
