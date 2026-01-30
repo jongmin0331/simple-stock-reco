@@ -40,6 +40,8 @@ if mode == "Quick (수동 입력)":
 else:
 	st.sidebar.markdown("주의: 시장 전체 스캔은 네트워크 요청이 많아 시간이 오래 걸립니다.")
 	max_scan = st.sidebar.number_input("최대 스캔 종목 수", min_value=10, max_value=2000, value=200, key="max_scan")
+	n_jobs = st.sidebar.number_input("병렬 작업 수 (workers)", min_value=1, max_value=32, value=4, key="n_jobs")
+	use_cache = st.sidebar.checkbox("캐시 사용 (권장)", value=True, key="use_cache")
 	if st.sidebar.button("Advanced 스캔 실행", key="adv_run"):
 		with st.spinner("티커 목록을 불러오는 중..."):
 			try:
@@ -56,7 +58,8 @@ else:
 		else:
 			st.info(f"스캔 대상 티커 수: {len(universe)} (최대 {max_scan}개로 제한)")
 			with st.spinner("고도화 스캔을 실행 중입니다... (시간이 걸립니다)"):
-				result = recommend_advanced(lambda t, period: fetch_history(t, period=period), universe, max_scan=max_scan)
+				# recommend_advanced uses caching internally via cache_utils
+				result = recommend_advanced(lambda t, period: fetch_history(t, period=period), universe, max_scan=max_scan, n_jobs=n_jobs)
 
 			# result is a dict with 'buy','sell','hold' DataFrames
 			df_buy = result.get('buy', pd.DataFrame())
